@@ -16,7 +16,7 @@ class InferenceEngineClassifier:
 
         # Add code for classes names loading
         with open(classesPath, 'r') as f:
-            self.labels_map = [x.split(sep=',', maxsplit=1)[-1].strip() for x in f]
+            self.labels_map = [x.split(sep=' ', maxsplit=1)[-1].strip() for x in f]
         
         return
 

@@ -108,7 +108,7 @@ while True:
                 weightsPath='squeezenet1.1.bin', 
                 device='CPU', 
                 extension="CPU", 
-                classesPath='names.txt')
+                classesPath='imagenet_synset_words.txt')
             
                 
             # Classify image
