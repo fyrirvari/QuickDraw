@@ -1,7 +1,5 @@
-import numpy as np
-import logging as log
-from collections import deque
-from Classifier import InferenceEngineClassifier
+
+
 
 #puts openvino to the PATH
 import os
@@ -11,6 +9,65 @@ os.add_dll_directory("C:\\Program Files (x86)\\Intel\\openvino_2021.3.394\\deplo
 #os.add_dll_directory("C:\\Program Files (x86)\\Intel\\openvino_2021.3.394\\deployment_tools\\inference_engine\\external\\hddl\\bin")
 os.add_dll_directory("C:\\Program Files (x86)\\Intel\\openvino_2021.3.394\\opencv\\bin")
 import cv2
+
+
+import numpy as np
+import glog as log
+from collections import deque
+
+from openvino.inference_engine import IENetwork, IECore
+class InferenceEngineClassifier:
+    def __init__(self, configPath=None, weightsPath=None,
+            device='CPU', extension=None, classesPath=None):
+        
+        # Add code for Inference Engine initialization
+        self.ie = IECore()
+        
+        # Add code for model loading
+        self.net = self.ie.read_network(model=configPath)
+        self.exec_net = self.ie.load_network(network=self.net, device_name=device)
+
+        # Add code for classes names loading
+        with open(classesPath, 'r') as f:
+            self.labels_map = [x.split(sep=',', maxsplit=1)[-1].strip() for x in f]
+        
+        return
+
+    def get_top(self, prob, topN=1):
+        result = []
+        
+        # Add code for getting top predictions
+        result = np.squeeze(prob)
+        result = np.argsort(result)[-topN:][::-1]
+        
+        return result
+
+    def _prepare_image(self, image, h, w):
+    
+        # Add code for image preprocessing
+        image = cv2.resize(image, (w, h))
+        image = image.transpose((2, 0, 1))
+        
+        return image
+
+    def classify(self, image):
+        probabilities = None
+        
+        # Add code for image classification using Inference Engine
+        input_blob = next(iter(self.net.input_info)) 
+        out_blob = next(iter(self.net.outputs))
+        
+        n, c, h, w = self.net.input_info[input_blob].input_data.shape
+        
+        image = self._prepare_image(image, h, w)
+        
+        output = self.exec_net.infer(inputs = {input_blob: image})
+        
+        output = output[out_blob]
+        
+        return output
+
+
 
 # Define the upper and lower boundaries for a color to be considered "Blue"
 blueLower = np.array([100, 60, 60])
@@ -36,9 +93,11 @@ cv2.getWindowImageRect('Paint')
 # Load the video
 camera = cv2.VideoCapture(0)
 
-# Switcher
+# Switcher for 1.TurnOn/Off 2.Once append 3.Save 4.Counter
 l1 = 1
 l2 = 1
+l3 = 1
+
 # Counter of image
 c = 0
 
@@ -57,8 +116,6 @@ while True:
     else:
         cv2.putText(frame, "Turn Off" , (800, 33), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
 
-
-
     # Check to see if we have reached the end of the video
     if not grabbed:
         break
@@ -75,8 +132,8 @@ while True:
 
     # Check to see if any contours were found
     if len(cnts) > 0:
-    	# Sort the contours and find the largest one -- we
-    	# will assume this contour correspondes to the area
+        # Sort the contours and find the largest one -- we
+        # will assume this contour correspondes to the area
         cnt = sorted(cnts, key = cv2.contourArea, reverse = True)[0]
         # Get the radius of the enclosing circle around the found contour
         ((x, y), radius) = cv2.minEnclosingCircle(cnt)
@@ -86,70 +143,66 @@ while True:
         M = cv2.moments(cnt)
         center = (int(M['m10'] / M['m00']), int(M['m01'] / M['m00']))
 
-        # Clear paintWindow 
-        if cv2.waitKey(1) & 0xFF == ord("c"):
-            bpoints = [deque(maxlen=512)]
-            bindex = 0
-            paintWindow[67:,:,:] = 0
-
-        # Sent key
-        if cv2.waitKey(1) & 0xFF == ord("s"):
-            # ..... modifying line for project .....
-            cv2.imwrite("image_{}.jpg".format(c), paintWindow)
-            # ..... modifying line for project .....
-            
-            
-            
-            log.info("Start IE classification sample")
-
-            # Create InferenceEngineClassifier object
-            ie_classifier = InferenceEngineClassifier(
-                configPath='squeezenet1.1.xml', 
-                weightsPath='squeezenet1.1.bin', 
-                device='CPU', 
-                extension="CPU", 
-                classesPath='imagenet_synset_words.txt')
-            
-                
-            # Classify image
-            prob = ie_classifier.classify(paintWindow)
-            
-            # Get top 5 predictions
-            predictions = ie_classifier.get_top(prob)
-            
-            labels = [ie_classifier.labels_map[x] for x in predictions]
-            
-            # print result
-            log.info("Predictions: " + str(predictions) + str(labels))
-            
-            
-
-            bpoints = [deque(maxlen=512)]
-            bindex = 0
-            paintWindow[67:,:,:] = 0
-            c+=1
-
-        # Change switcher for stop/start drawing
-        if cv2.waitKey(1) & 0xFF == ord("h"):
-            l1 = -l1
-            l2 = 1
-
-        # Create the next new deq for lines   
-        if l1 == -1 and l2 == 1:
-            bpoints.append(deque(maxlen=1000))
-            bindex += 1
-            l2 = -1
-
         # Append new points in currently deq
         if colorIndex == 0 and l1 == 1:
-             bpoints[bindex].appendleft(center)
+            bpoints[bindex].appendleft(center)
 
+    # Clear paintWindow 
+    if cv2.waitKey(20) & 0xFF == ord("c"):
+        bpoints = [deque(maxlen=512)]
+        bindex = 0
+        paintWindow[67:,:,:] = 0
 
-    # Append the next deque when no contours are detected
-    else:
+    # Sent key
+    if (cv2.waitKey(20) & 0xFF == ord("s")) and l3 == 1:
+
+        # ..... modifying line for project .....
+        cv2.imwrite("image_{}.jpg".format(c), paintWindow)
+        # ..... modifying line for project .....
+        
+        
+        log.info("Start IE classification sample")
+
+        # Create InferenceEngineClassifier object
+        ie_classifier = InferenceEngineClassifier(
+            configPath=r"model.xml", 
+            weightsPath=r'model.bin', 
+            device=r'CPU', 
+            extension=r"CPU", 
+            classesPath=r'names.txt')
+            
+                
+        # Classify image
+        prob = ie_classifier.classify(paintWindow)
+            
+        # Get top 5 predictions
+        predictions = ie_classifier.get_top(prob)
+            
+        labels = [ie_classifier.labels_map[x] for x in predictions]
+        
+        log.info("Predictions: " + str(predictions) + str(labels))
+        
+
+        l3 = -1
+        bpoints = [deque(maxlen=512)]
+        bindex = 0
+        paintWindow[67:,:,:] = 0
+        c+=1
+
+    # Change switcher for stop/start drawing
+    if cv2.waitKey(20) & 0xFF == ord("h"):
+        l1 = -l1
+        l2 = 1
+
+    # Create the next new deq for lines   
+    if l1 == -1 and l2 == 1:
         bpoints.append(deque(maxlen=1000))
         bindex += 1
+        l2 = -1
 
+    # If the 'q' key is pressed, stop the loop
+    if cv2.waitKey(1) & 0xFF == ord("q"):
+        break
 
     # Draw lines of all the colors
     # points = [bpoints]
@@ -165,10 +218,6 @@ while True:
     # Show the frame and the paintWindow image
     cv2.imshow("Tracking", frame)
     cv2.imshow("Paint", paintWindow)
-
-	# If the 'q' key is pressed, stop the loop
-    if cv2.waitKey(1) & 0xFF == ord("q"):
-        break
 
 # Cleanup the camera and close any open windows
 camera.release()
